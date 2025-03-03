@@ -199,6 +199,50 @@ def process_file(file):
     
     return text
 
+# Function to create a sample PDF
+def create_sample_pdf(amount="500,000.00", borrower="David Johnson"):
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+    from io import BytesIO
+    
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(100, 750, "DEED OF TRUST")
+    
+    c.setFont("Helvetica", 12)
+    c.drawString(100, 720, f"Date: March 1, 2025")
+    c.drawString(100, 700, f"Borrower: {borrower}")
+    c.drawString(100, 680, f"Lender: XYZ Financial Services")
+    
+    c.setFont("Helvetica", 12)
+    c.drawString(100, 640, "THIS DEED OF TRUST is made on the date above between the Borrower and Lender.")
+    c.drawString(100, 620, "WHEREAS, Borrower is indebted to Lender in the principal sum of")
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(100, 600, f"FIVE HUNDRED THOUSAND AND 00/100 DOLLARS (${amount}),")
+    c.setFont("Helvetica", 12)
+    c.drawString(100, 580, "which indebtedness is evidenced by Borrower's note dated the same date as")
+    c.drawString(100, 560, "this Security Instrument.")
+    
+    # Add more content
+    c.drawString(100, 520, "The Property address is: 123 Main Street, Anytown, CA 90210")
+    
+    c.drawString(100, 480, "IN WITNESS WHEREOF, Borrower has executed this Security Instrument.")
+    
+    c.drawString(100, 440, "_________________________")
+    c.drawString(100, 425, "Borrower Signature")
+    
+    c.drawString(300, 440, "_________________________")
+    c.drawString(300, 425, "Date")
+    
+    c.save()
+    
+    # Get the PDF content
+    pdf_content = buffer.getvalue()
+    buffer.close()
+    
+    return pdf_content
+
 # Check Tesseract installation at startup
 tesseract_installed = is_tesseract_installed()
 if not tesseract_installed:
@@ -287,44 +331,94 @@ with tab2:
 with tab3:
     example_select = st.selectbox(
         "Select an example document",
-        ["Example 1: $250,000 Loan", "Example 2: $375,000 Loan"]
+        ["Example 1", "Example 2", "Example 3: PDF Document"]
     )
     
     example_texts = {
-        "Example 1: $250,000 Loan": """DEED OF TRUST
+        "Example 1": """DEED OF TRUST
 
 THIS DEED OF TRUST is made this 15th day of June, 2023, between John Smith and Jane Smith, husband and wife (the "Borrower"), and First National Bank (the "Lender").
 
 WHEREAS, Borrower is indebted to Lender in the principal sum of TWO HUNDRED FIFTY THOUSAND AND 00/100 DOLLARS ($250,000.00), which indebtedness is evidenced by Borrower's note dated June 15, 2023.""",
         
-        "Example 2: $375,000 Loan": """DEED OF TRUST
+        "Example 2": """DEED OF TRUST
 
 THIS DEED OF TRUST ("Security Instrument") is made on April 10, 2023. The grantor is Robert Johnson and Mary Johnson ("Borrower"). The trustee is Heritage Trust Company ("Trustee"). The beneficiary is Mortgage Financial Inc., which is organized and existing under the laws of California and whose address is 123 Finance St., Los Angeles, CA 90001 ("Lender").
 
 Borrower owes Lender the principal sum of Three Hundred Seventy-Five Thousand and 00/100 Dollars (U.S. $375,000.00). This debt is evidenced by Borrower's note dated the same date as this Security Instrument ("Note"), which provides for monthly payments."""
     }
     
-    st.text_area("Example Document", example_texts[example_select], height=300)
-    
-    if st.button("Extract Loan Amount", key="extract_example"):
-        with st.spinner("Extracting loan amount..."):
-            result = extract_loan_amount(example_texts[example_select], model, tokenizer)
-            
-            if result["found"]:
-                st.success("Extraction complete!")
+    if example_select == "Example 3: PDF Document":
+        # Create a sample PDF
+        pdf_bytes = create_sample_pdf()
+        
+        # Display PDF download button
+        st.download_button(
+            label="Download Example PDF",
+            data=pdf_bytes,
+            file_name="5415730-1.pdf",
+            mime="application/pdf"
+        )
+        
+        # Show PDF preview
+        base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
+        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="300" type="application/pdf"></iframe>'
+        st.markdown(pdf_display, unsafe_allow_html=True)
+        
+        # Create a BytesIO object from the PDF bytes
+        pdf_file = io.BytesIO(pdf_bytes)
+        pdf_file.name = "sample_deed_500000.pdf"
+        
+        if st.button("Process and Extract Loan Amount", key="process_pdf_example"):
+            with st.spinner("Processing PDF..."):
+                text = process_file(pdf_file)
                 
-                # Display each found chunk with the extracted amount
-                for idx, r in enumerate(result["results"]):
-                    st.subheader(f"Detected Amount: {r['price']}")
-                    st.text_area(f"Text Chunk {idx+1}", r['text'], height=150)
+                if text:
+                    st.subheader("Extracted Text")
+                    with st.expander("Show extracted text"):
+                        st.text(text)
                     
-                    # Also show highlighted version
-                    st.markdown("**Highlighted:**")
-                    highlighted = highlight_text(r['text'], r['price'])
-                    st.markdown(highlighted, unsafe_allow_html=True)
-                    st.markdown("---")
-            else:
-                st.error("No loan amount could be detected in this document.")
+                    with st.spinner("Extracting loan amount..."):
+                        result = extract_loan_amount(text, model, tokenizer)
+                        
+                        if result["found"]:
+                            st.success("Extraction complete!")
+                            
+                            # Display each found chunk with the extracted amount
+                            for idx, r in enumerate(result["results"]):
+                                st.subheader(f"Detected Amount: {r['price']}")
+                                st.text_area(f"Text Chunk {idx+1}", r['text'], height=150)
+                                
+                                # Also show highlighted version
+                                st.markdown("**Highlighted:**")
+                                highlighted = highlight_text(r['text'], r['price'])
+                                st.markdown(highlighted, unsafe_allow_html=True)
+                                st.markdown("---")
+                        else:
+                            st.error("No loan amount could be detected in this document.")
+    else:
+        # Display text examples
+        st.text_area("Example Document", example_texts[example_select], height=300)
+        
+        if st.button("Extract Loan Amount", key="extract_example"):
+            with st.spinner("Extracting loan amount..."):
+                result = extract_loan_amount(example_texts[example_select], model, tokenizer)
+                
+                if result["found"]:
+                    st.success("Extraction complete!")
+                    
+                    # Display each found chunk with the extracted amount
+                    for idx, r in enumerate(result["results"]):
+                        st.subheader(f"Detected Amount: {r['price']}")
+                        st.text_area(f"Text Chunk {idx+1}", r['text'], height=150)
+                        
+                        # Also show highlighted version
+                        st.markdown("**Highlighted:**")
+                        highlighted = highlight_text(r['text'], r['price'])
+                        st.markdown(highlighted, unsafe_allow_html=True)
+                        st.markdown("---")
+                else:
+                    st.error("No loan amount could be detected in this document.")
 
 # Add information about the model
 st.sidebar.title("About")
