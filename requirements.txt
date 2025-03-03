@@ -8,5 +8,4 @@ torch
 transformers
 huggingface_hub
 langchain
-langchain-text-splitter
 numpy
