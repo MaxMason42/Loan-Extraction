@@ -1,10 +1,12 @@
-streamlit>=1.22.0
+streamlit
 pandas
 pillow
+opencv-python-headless
 pytesseract
 pdf2image
 torch
 transformers
 huggingface_hub
 langchain
+langchain-text-splitter
 numpy
