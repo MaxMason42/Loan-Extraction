@@ -367,7 +367,7 @@ Borrower owes Lender the principal sum of Three Hundred Seventy-Five Thousand an
         # Show PDF preview
         pdf_display = f"""
             <iframe 
-                src="data:application/pdf;base64,{base64.b64encode(pdf_bytes).decode('utf-8')}" 
+                src="data:application/pdf;base64,{open(pdf_path, "rb").read().decode("latin1")}" 
                 width="700" 
                 height="500" 
                 style="border: none; display: block; width: 100%;"
