@@ -375,7 +375,7 @@ Borrower owes Lender the principal sum of Three Hundred Seventy-Five Thousand an
                     width="100%" 
                     height="500">
                         <p>It appears your browser doesn't support embedded PDFs. 
-                        You can <a href="javascript:void(0);" onclick="alert('Use the download button above!')">download the PDF</a> instead.</p>
+                        You can download the PDF instead.</p>
                 </object>
             """
             st.markdown(pdf_display, unsafe_allow_html=True)
