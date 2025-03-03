@@ -1,0 +1,8 @@
+streamlit>=1.22.0
+pandas
+pillow
+pytesseract
+pdf2image
+pytorch
+transformers
+huggingface_hub
