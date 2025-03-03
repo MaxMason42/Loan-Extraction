@@ -16,7 +16,7 @@ from pdf2image import convert_from_bytes
 
 #Import libraries for LLM
 import torch
-from transformers import BartTokenizer, BartForConditionalGeneration
+from transformers import AutoTokenizer, BartForConditionalGeneration
 from huggingface_hub import snapshot_download
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
@@ -49,7 +49,7 @@ def is_tesseract_installed():
 def load_model():
     model_dir = snapshot_download(repo_id="MaxMason42/Loan-Extraction",
                                   use_auth_token=hf_token)
-    tokenizer = BartTokenizer.from_pretrained('facebook/bart-base')
+    tokenizer = AutoTokenizer.from_pretrained('facebook/bart-base')
     model = BartForConditionalGeneration.from_pretrained(model_dir)
     
     st.success("Model loaded successfully!")
