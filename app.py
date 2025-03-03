@@ -365,8 +365,15 @@ Borrower owes Lender the principal sum of Three Hundred Seventy-Five Thousand an
         )
         
         # Show PDF preview
-        st.subheader("PDF Preview")
-        st.pdf(pdf_bytes)
+        pdf_display = f"""
+            <iframe 
+                src="data:application/pdf;base64,{base64.b64encode(pdf_bytes).decode('utf-8')}" 
+                width="700" 
+                height="500" 
+                style="border: none; display: block; width: 100%;"
+            ></iframe>
+        """
+        st.markdown(pdf_display, unsafe_allow_html=True)
         
         # Create a BytesIO object from the PDF bytes
         pdf_file = io.BytesIO(pdf_bytes)
