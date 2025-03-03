@@ -199,50 +199,6 @@ def process_file(file):
     
     return text
 
-# Function to create a sample PDF
-def create_sample_pdf(amount="500,000.00", borrower="David Johnson"):
-    from reportlab.lib.pagesizes import letter
-    from reportlab.pdfgen import canvas
-    from io import BytesIO
-    
-    buffer = BytesIO()
-    c = canvas.Canvas(buffer, pagesize=letter)
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(100, 750, "DEED OF TRUST")
-    
-    c.setFont("Helvetica", 12)
-    c.drawString(100, 720, f"Date: March 1, 2025")
-    c.drawString(100, 700, f"Borrower: {borrower}")
-    c.drawString(100, 680, f"Lender: XYZ Financial Services")
-    
-    c.setFont("Helvetica", 12)
-    c.drawString(100, 640, "THIS DEED OF TRUST is made on the date above between the Borrower and Lender.")
-    c.drawString(100, 620, "WHEREAS, Borrower is indebted to Lender in the principal sum of")
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(100, 600, f"FIVE HUNDRED THOUSAND AND 00/100 DOLLARS (${amount}),")
-    c.setFont("Helvetica", 12)
-    c.drawString(100, 580, "which indebtedness is evidenced by Borrower's note dated the same date as")
-    c.drawString(100, 560, "this Security Instrument.")
-    
-    # Add more content
-    c.drawString(100, 520, "The Property address is: 123 Main Street, Anytown, CA 90210")
-    
-    c.drawString(100, 480, "IN WITNESS WHEREOF, Borrower has executed this Security Instrument.")
-    
-    c.drawString(100, 440, "_________________________")
-    c.drawString(100, 425, "Borrower Signature")
-    
-    c.drawString(300, 440, "_________________________")
-    c.drawString(300, 425, "Date")
-    
-    c.save()
-    
-    # Get the PDF content
-    pdf_content = buffer.getvalue()
-    buffer.close()
-    
-    return pdf_content
-
 # Check Tesseract installation at startup
 tesseract_installed = is_tesseract_installed()
 if not tesseract_installed:
@@ -449,15 +405,8 @@ This application demonstrates a fine-tuned language model that extracts loan amo
 4. Results are displayed with highlights
 
 ### Model details:
-- Fine-tuned on a dataset of deed of trust documents
+- Created dataset from webscrapping deeds of trust and labeling loan amounts
+- Fine-tuned on this dataset to extract loan amounts
 - Integrated with Tesseract OCR for document processing
-- Optimized for extracting loan amount information
-""")
-
-# Add portfolio information
-st.sidebar.title("Portfolio Project")
-st.sidebar.markdown("""
-This is a demonstration of my work in natural language processing and machine learning.
-
-Check out my other projects on my portfolio website!
+- 99.7% accuracy and 98.4% F1 score on test data
 """)
