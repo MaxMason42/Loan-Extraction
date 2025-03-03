@@ -365,15 +365,20 @@ Borrower owes Lender the principal sum of Three Hundred Seventy-Five Thousand an
         )
         
         # Show PDF preview
-        pdf_display = f"""
-            <iframe 
-                src="data:application/pdf;base64,{open(pdf_path, "rb").read().decode("latin1")}" 
-                width="700" 
-                height="500" 
-                style="border: none; display: block; width: 100%;"
-            ></iframe>
-        """
-        st.markdown(pdf_display, unsafe_allow_html=True)
+        st.markdown("### PDF Preview")
+        with st.expander("Show PDF Preview", expanded=True):
+            # Create an object element which sometimes works better than iframe
+            pdf_display = f"""
+                <object 
+                    data="data:application/pdf;base64,{base64.b64encode(pdf_bytes).decode('utf-8')}" 
+                    type="application/pdf"
+                    width="100%" 
+                    height="500">
+                        <p>It appears your browser doesn't support embedded PDFs. 
+                        You can <a href="javascript:void(0);" onclick="alert('Use the download button above!')">download the PDF</a> instead.</p>
+                </object>
+            """
+            st.markdown(pdf_display, unsafe_allow_html=True)
         
         # Create a BytesIO object from the PDF bytes
         pdf_file = io.BytesIO(pdf_bytes)
