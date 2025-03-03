@@ -3,6 +3,8 @@ pandas
 pillow
 pytesseract
 pdf2image
-pytorch
+torch
 transformers
 huggingface_hub
+langchain
+numpy

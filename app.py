@@ -7,6 +7,8 @@ from PIL import Image
 import tempfile
 import os
 import sys
+import cv2
+import numpy as np
 
 # Import OCR libraries
 import pytesseract
@@ -16,6 +18,7 @@ from pdf2image import convert_from_bytes
 import torch
 from transformers import BartTokenizer, BartForConditionalGeneration
 from huggingface_hub import snapshot_download
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 st.set_page_config(
     page_title="Loan Amount Extractor",
@@ -50,89 +53,94 @@ def load_model():
     model = BartForConditionalGeneration.from_pretrained(model_dir)
     
     st.success("Model loaded successfully!")
-    return "model_placeholder"
+    return model, tokenizer
+
+def scan_text(page):
+    # Convert the page to grayscale
+    gray = cv2.cvtColor(np.array(page), cv2.COLOR_BGR2GRAY)
+
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    enhanced = clahe.apply(gray)
+    
+    # Apply thresholding
+    _, binary_image = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    kernel = np.ones((2, 2), np.uint8) 
+    binary_image = cv2.dilate(binary_image, kernel, iterations=1)
+    
+    # Remove noise
+    denoised = cv2.fastNlMeansDenoising(binary_image, None, 30, 7, 21)
+    
+    # Convert image to PIL format
+    pil_image = Image.fromarray(denoised)
+    
+    # Extract text using pytesseract
+    custom_config = r'--oem 3 --psm 4'
+    text = pytesseract.image_to_string(pil_image, config=custom_config)
+    return text
+
+
+def chunk_text(text, tokenizer):
+    def token_length_function(text):
+        return len(tokenizer.encode(text))
+    
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=500,
+        chunk_overlap=0,
+        length_function=token_length_function,
+        separators=["\n\n", "\n", ". ", " ", ""]
+    )
+
+    text_chunks = text_splitter.split_text(text)
+    return text_chunks
+
 
 # Function to extract loan amount using your model
-def extract_loan_amount(text, model):
-    """
-    Process text with your fine-tuned model
-    Replace this with your actual inference code
-    """
-    # This is a placeholder for your actual ML model
-    # In your real app, you would call your model here
+def extract_loan_amount(text, model, tokenizer):
+    def extract_price(text):
+        input_text = text
+        inputs = tokenizer(input_text, return_tensors='pt', max_length=512, truncation=True)
+        device = model.device  # Get the model's device
+        inputs = {key: value.to(device) for key, value in inputs.items()}
+        outputs = model.generate(**inputs, max_length=20)
+        return tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+    text_chunks = chunk_text(text, tokenizer)
+    results = []
+
+    for chunk in text_chunks:
+        price = extract_price(chunk)
+        if price != "None":
+            results.append({
+                'price': price,
+                'text': chunk
+            })
     
-    # Example patterns for demonstration
-    patterns = [
-        r'principal sum of ([A-Za-z]+ [A-Za-z]+ [A-Za-z]+ AND \d+\/\d+ DOLLARS) \([$]([0-9,.]+)\)',
-        r'principal sum of ([A-Za-z]+ [A-Za-z]+ [A-Za-z]+-[A-Za-z]+ [A-Za-z]+ AND \d+\/\d+ DOLLARS) \([$]([0-9,.]+)\)',
-        r'principal sum of ([A-Za-z]+ [A-Za-z]+ [A-Za-z]+ [A-Za-z]+-[A-Za-z]+ AND \d+\/\d+ Dollars) \(U\.S\. [$]([0-9,.]+)\)'
-    ]
+    # Check if we found any results
+    found = len(results) > 0
     
-    for pattern in patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            return {
-                "found": True,
-                "textAmount": match.group(1),
-                "numericAmount": match.group(2),
-                "confidence": 0.95
-            }
-    
-    # If no exact match, look for dollar amounts
-    dollar_pattern = r'[$]([0-9,.]+)'
-    matches = re.findall(dollar_pattern, text)
-    
-    if matches:
-        # Return the largest amount
-        amounts = [float(amt.replace(',', '')) for amt in matches]
-        max_amount = max(amounts)
-        return {
-            "found": True,
-            "textAmount": None,
-            "numericAmount": f"{max_amount:,.2f}",
-            "confidence": 0.7
-        }
-    
+    # Return just the results array with chunks and prices
     return {
-        "found": False,
-        "confidence": 0
+        "found": found,
+        "results": results
     }
 
 # Function to highlight text
-def highlight_text(text, amount_text, amount_numeric):
+def highlight_text(text, amount):
     """Highlight the loan amount in the text"""
     highlighted_text = text
     
-    if amount_text:
-        # Escape special regex characters in the text amount
-        escaped_text = re.escape(amount_text)
+    if amount:
+        # Escape special regex characters in the amount
+        escaped_amount = re.escape(amount)
         highlighted_text = re.sub(
-            f'({escaped_text})',
+            f'({escaped_amount})',
             r'<span style="background-color: #FFFF00; font-weight: bold;">\1</span>',
             highlighted_text,
             flags=re.IGNORECASE
         )
     
-    if amount_numeric:
-        # Escape special regex characters in the numeric amount
-        escaped_numeric = re.escape(amount_numeric)
-        highlighted_text = re.sub(
-            f'(\\${escaped_numeric})',
-            r'<span style="background-color: #FFFF00; font-weight: bold;">\1</span>',
-            highlighted_text
-        )
-    
     return highlighted_text
-
-# Function to perform OCR on an image
-def perform_ocr(image):
-    """Extract text from image using Tesseract OCR"""
-    try:
-        text = pytesseract.image_to_string(image)
-        return text
-    except Exception as e:
-        st.error(f"OCR Error: {e}")
-        return ""
 
 # Function to process uploaded file
 def process_file(file):
@@ -159,7 +167,7 @@ def process_file(file):
                 # Process each page with OCR
                 full_text = []
                 for i, img in enumerate(images):
-                    page_text = perform_ocr(img)
+                    page_text = scan_text(img)
                     full_text.append(page_text)
                 
                 text = "\n".join(full_text)
@@ -181,7 +189,7 @@ def process_file(file):
             
             st.info("Performing OCR on image...")
             # Perform OCR
-            text = perform_ocr(image)
+            text = scan_text(image)
         except Exception as e:
             st.error(f"Error processing image: {e}")
             return ""
@@ -208,7 +216,7 @@ if not tesseract_installed:
 
 # Load model when app starts
 with st.spinner("Loading model..."):
-    model = load_model()
+    model, tokenizer = load_model()
 
 # Create tabs for different input methods
 tab1, tab2, tab3 = st.tabs(["Upload Document", "Paste Text", "Try Examples"])
@@ -232,23 +240,21 @@ with tab1:
             
             if st.button("Extract Loan Amount", key="extract_file"):
                 with st.spinner("Extracting loan amount..."):
-                    result = extract_loan_amount(text, model)
+                    result = extract_loan_amount(text, model, tokenizer)
                     
                     if result["found"]:
                         st.success("Extraction complete!")
                         
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.metric("Loan Amount", f"${result['numericAmount']}")
-                        with col2:
-                            st.metric("Confidence", f"{result['confidence']*100:.1f}%")
-                        
-                        if result["textAmount"]:
-                            st.info(f"Written amount: {result['textAmount']}")
-                        
-                        st.subheader("Document with Highlights")
-                        highlighted = highlight_text(text, result.get("textAmount"), result.get("numericAmount"))
-                        st.markdown(highlighted, unsafe_allow_html=True)
+                        # Display each found chunk with the extracted amount
+                        for idx, r in enumerate(result["results"]):
+                            st.subheader(f"Detected Amount: {r['price']}")
+                            st.text_area(f"Text Chunk {idx+1}", r['text'], height=150)
+                            
+                            # Also show highlighted version
+                            st.markdown("**Highlighted:**")
+                            highlighted = highlight_text(r['text'], r['price'])
+                            st.markdown(highlighted, unsafe_allow_html=True)
+                            st.markdown("---")
                     else:
                         st.error("No loan amount could be detected in this document.")
 
@@ -259,23 +265,21 @@ with tab2:
     if text_input:
         if st.button("Extract Loan Amount", key="extract_text"):
             with st.spinner("Extracting loan amount..."):
-                result = extract_loan_amount(text_input, model)
+                result = extract_loan_amount(text_input, model, tokenizer)
                 
                 if result["found"]:
                     st.success("Extraction complete!")
                     
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.metric("Loan Amount", f"${result['numericAmount']}")
-                    with col2:
-                        st.metric("Confidence", f"{result['confidence']*100:.1f}%")
-                    
-                    if result["textAmount"]:
-                        st.info(f"Written amount: {result['textAmount']}")
-                    
-                    st.subheader("Document with Highlights")
-                    highlighted = highlight_text(text_input, result.get("textAmount"), result.get("numericAmount"))
-                    st.markdown(highlighted, unsafe_allow_html=True)
+                    # Display each found chunk with the extracted amount
+                    for idx, r in enumerate(result["results"]):
+                        st.subheader(f"Detected Amount: {r['price']}")
+                        st.text_area(f"Text Chunk {idx+1}", r['text'], height=150)
+                        
+                        # Also show highlighted version
+                        st.markdown("**Highlighted:**")
+                        highlighted = highlight_text(r['text'], r['price'])
+                        st.markdown(highlighted, unsafe_allow_html=True)
+                        st.markdown("---")
                 else:
                     st.error("No loan amount could be detected in this document.")
 
@@ -304,23 +308,21 @@ Borrower owes Lender the principal sum of Three Hundred Seventy-Five Thousand an
     
     if st.button("Extract Loan Amount", key="extract_example"):
         with st.spinner("Extracting loan amount..."):
-            result = extract_loan_amount(example_texts[example_select], model)
+            result = extract_loan_amount(example_texts[example_select], model, tokenizer)
             
             if result["found"]:
                 st.success("Extraction complete!")
                 
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric("Loan Amount", f"${result['numericAmount']}")
-                with col2:
-                    st.metric("Confidence", f"{result['confidence']*100:.1f}%")
-                
-                if result["textAmount"]:
-                    st.info(f"Written amount: {result['textAmount']}")
-                
-                st.subheader("Document with Highlights")
-                highlighted = highlight_text(example_texts[example_select], result.get("textAmount"), result.get("numericAmount"))
-                st.markdown(highlighted, unsafe_allow_html=True)
+                # Display each found chunk with the extracted amount
+                for idx, r in enumerate(result["results"]):
+                    st.subheader(f"Detected Amount: {r['price']}")
+                    st.text_area(f"Text Chunk {idx+1}", r['text'], height=150)
+                    
+                    # Also show highlighted version
+                    st.markdown("**Highlighted:**")
+                    highlighted = highlight_text(r['text'], r['price'])
+                    st.markdown(highlighted, unsafe_allow_html=True)
+                    st.markdown("---")
             else:
                 st.error("No loan amount could be detected in this document.")
 
