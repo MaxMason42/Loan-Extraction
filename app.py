@@ -350,7 +350,11 @@ Borrower owes Lender the principal sum of Three Hundred Seventy-Five Thousand an
     
     if example_select == "Example 3: PDF Document":
         # Create a sample PDF
-        pdf_bytes = create_sample_pdf()
+
+        pdf_path = "5415730-1.pdf"
+
+        with open(pdf_path, 'rb') as file:
+            pdf_bytes = file.read()
         
         # Display PDF download button
         st.download_button(
@@ -367,7 +371,7 @@ Borrower owes Lender the principal sum of Three Hundred Seventy-Five Thousand an
         
         # Create a BytesIO object from the PDF bytes
         pdf_file = io.BytesIO(pdf_bytes)
-        pdf_file.name = "sample_deed_500000.pdf"
+        pdf_file.name = "5415730-1.pdf"
         
         if st.button("Process and Extract Loan Amount", key="process_pdf_example"):
             with st.spinner("Processing PDF..."):
