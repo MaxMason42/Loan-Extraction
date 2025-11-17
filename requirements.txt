@@ -7,6 +7,6 @@ pdf2image
 torch
 transformers
 huggingface_hub
-langchain
+langchain==0.0.350
 numpy
 reportlab
