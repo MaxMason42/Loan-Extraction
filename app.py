@@ -18,7 +18,7 @@ from pdf2image import convert_from_bytes
 import torch
 from transformers import AutoTokenizer, BartForConditionalGeneration
 from huggingface_hub import snapshot_download
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.text_splitters import RecursiveCharacterTextSplitter
 
 st.set_page_config(
     page_title="Loan Amount Extractor",
